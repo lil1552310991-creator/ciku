@@ -42,30 +42,38 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                 title.setTextColor(Color.BLACK); title.getPaint().setFakeBoldText(true);
                 card.addView(title);
 
-                // 搜索栏（即时过滤）
-                final EditText searchEt = makeInput(act, "输入QQ号或昵称即时过滤...", "");
+                // 搜索栏：输入框 + 按钮同一行
+                LinearLayout searchBar = new LinearLayout(act);
+                searchBar.setOrientation(LinearLayout.HORIZONTAL);
+                final EditText searchEt = makeInput(act, "输入QQ/昵称搜索...", "");
                 searchEt.setSingleLine(true);
-                card.addView(searchEt);
-                TextView searchHelp = new TextView(act);
-                searchHelp.setText("  输入关键词自动过滤，空格可分多词，如: 张三 12345");
-                searchHelp.setTextSize(9); searchHelp.setTextColor(Color.GRAY);
-                card.addView(searchHelp);
+                searchBar.addView(searchEt, new LinearLayout.LayoutParams(0, -2, 1));
+                TextView doSearchBtn = new TextView(act);
+                doSearchBtn.setText("搜索"); doSearchBtn.setTextColor(Color.WHITE); doSearchBtn.setTextSize(12);
+                doSearchBtn.setBackground(roundRect(blue, dp(act, 6)));
+                doSearchBtn.setPadding(dp(act, 10), dp(act, 8), dp(act, 10), dp(act, 8));
+                doSearchBtn.setGravity(Gravity.CENTER);
+                searchBar.addView(doSearchBtn);
+                card.addView(searchBar);
 
-                // 加载中提示
+                // 加载提示
                 final TextView loadHint = new TextView(act);
-                loadHint.setText("正在加载成员..."); loadHint.setTextSize(11);
-                loadHint.setTextColor(Color.GRAY); loadHint.setPadding(0, dp(act, 4), 0, dp(act, 4));
+                loadHint.setText("正在加载..."); loadHint.setTextSize(11);
+                loadHint.setTextColor(Color.GRAY); loadHint.setPadding(0, dp(act, 3), 0, dp(act, 3));
                 card.addView(loadHint);
 
+                // 成员列表
                 final ScrollView scrollView = new ScrollView(act);
                 final LinearLayout memberList = new LinearLayout(act);
                 memberList.setOrientation(LinearLayout.VERTICAL);
                 scrollView.addView(memberList);
-                LinearLayout.LayoutParams lpScroll = new LinearLayout.LayoutParams(-1, dp(act, 280));
+                LinearLayout.LayoutParams lpScroll = new LinearLayout.LayoutParams(-1, dp(act, 260));
                 card.addView(scrollView, lpScroll);
 
                 final List selectedUins = new ArrayList();
                 final List allMembersData = new ArrayList();
+                final int PAGE_SIZE = 80;  // 分页渲染，避免卡顿
+                final List renderPage = new ArrayList(); renderPage.add(new Integer(0)); // [0]=当前页码
 
                 // 后台加载当前群成员
                 new Thread(new Runnable() {
@@ -86,25 +94,18 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                         act.runOnUiThread(new Runnable() {
                             public void run() {
                                 loadHint.setText("共 " + allMembersData.size() + " 人");
-                                renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue);
+                                renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue, 0, PAGE_SIZE);
                             }
                         });
                     }
                 }).start();
 
                 // 搜索按钮
-                TextView doSearchBtn = new TextView(act);
-                doSearchBtn.setText("🔍 搜索过滤"); doSearchBtn.setTextColor(Color.WHITE); doSearchBtn.setTextSize(13);
-                doSearchBtn.setBackground(roundRect(blue, dp(act, 8)));
-                doSearchBtn.setPadding(0, dp(act, 8), 0, dp(act, 8));
-                doSearchBtn.setGravity(Gravity.CENTER);
-                LinearLayout.LayoutParams lpSearchBtn = new LinearLayout.LayoutParams(-1, -2);
-                lpSearchBtn.topMargin = dp(act, 4);
-                card.addView(doSearchBtn, lpSearchBtn);
                 doSearchBtn.setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) {
                         String kw = searchEt.getText().toString().trim();
-                        renderMemberRows(memberList, allMembersData, selectedUins, kw, act, blue);
+                        renderPage.set(0, new Integer(0));
+                        renderMemberRows(memberList, allMembersData, selectedUins, kw, act, blue, 0, PAGE_SIZE);
                     }
                 });
 
