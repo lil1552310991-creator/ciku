@@ -182,79 +182,6 @@ String[] FALLBACK_DICT = new String[] {
 
 int triggerCount = 0;
 
-// 群成员缓存系统：文件缓存 + 后台刷新
-List gCachedMembers = new ArrayList();
-long gMemberCacheTime = 0;
-
-// 静默加载缓存（只读文件，不调API，秒完成）
-void loadMemberCache() {
-    try {
-        String cachePath = getScriptPath() + "/Ciku/members_cache.txt";
-        if (exists(cachePath)) {
-            String raw = read(cachePath);
-            if (raw != null && raw.trim().length() > 0) {
-                gCachedMembers.clear();
-                String[] lines = raw.split("\n");
-                for (int i = 0; i < lines.length; i++) {
-                    String line = lines[i].trim();
-                    if (line.length() > 0) gCachedMembers.add(line);
-                }
-                gMemberCacheTime = time();
-            }
-        }
-    } catch (Throwable t) {}
-    // 没有缓存也不急，等用户打开检索时再刷新
-}
-
-// 静默后台刷新缓存（不阻塞UI）
-void refreshMemberCache() {
-    new Thread(new Runnable() {
-        public void run() {
-            try {
-                List fresh = new ArrayList();
-                List allGroups = groups();
-                if (allGroups != null) {
-                    for (int g = 0; g < allGroups.size(); g++) {
-                        Map grp = (Map) allGroups.get(g);
-                        String gid = (String) grp.get("group");
-                        if (gid == null) continue;
-                        List ml = members(gid, false);
-                        if (ml == null) continue;
-                        for (int i = 0; i < ml.size(); i++) {
-                            Object m = ml.get(i);
-                            String uin = getMemberUin(m);
-                            if (uin == null) continue;
-                            String nick = getDisplayNick(m);
-                            if (nick == null || nick.length() == 0) nick = uin;
-                            // 用 | 分隔存储
-                            String entry = nick.replace("|", "/") + "|" + uin;
-                            boolean dup = false;
-                            for (int j = 0; j < fresh.size(); j++) {
-                                if (((String) fresh.get(j)).endsWith("|" + uin)) { dup = true; break; }
-                            }
-                            if (!dup) fresh.add(entry);
-                        }
-                    }
-                }
-                if (fresh.size() > 0) {
-                    gCachedMembers.clear();
-                    gCachedMembers.addAll(fresh);
-                    gMemberCacheTime = time();
-                    // 写入缓存文件
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < fresh.size(); i++) {
-                        if (sb.length() > 0) sb.append("\n");
-                        sb.append((String) fresh.get(i));
-                    }
-                    String cachePath = getScriptPath() + "/Ciku/members_cache.txt";
-                    write(cachePath, sb.toString());
-                    log("成员缓存刷新: " + fresh.size() + " 人");
-                }
-            } catch (Throwable t) {}
-        }
-    }).start();
-}
-
 // 创建默认的 TargetRule（使用全局默认值）
 TargetRule makeDefaultRule(String uin) {
     TargetRule r = new TargetRule();
@@ -606,36 +533,32 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                 card.addView(scrollView, lpScroll);
 
                 final List selectedUins = new ArrayList();
-                final List allMembersData = new ArrayList();  // 全量数据，供搜索用
+                final List allMembersData = new ArrayList();
 
-                // 直接读缓存（秒开）
-                allMembersData.addAll(gCachedMembers);
-                if (allMembersData.size() > 0) {
-                    loadHint.setText("共 " + allMembersData.size() + " 人");
-                    renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue);
-                    // 超过5分钟后台刷新
-                    if (time() - gMemberCacheTime > 300000) {
-                        loadHint.setText("共 " + allMembersData.size() + " 人（后台更新中...）");
-                        refreshMemberCache();
-                    }
-                } else {
-                    loadHint.setText("首次加载，请稍候...");
-                    refreshMemberCache();
-                    // 等待刷新完成后渲染
-                    new Thread(new Runnable() {
-                        public void run() {
-                            sleep(2000);
-                            act.runOnUiThread(new Runnable() {
-                                public void run() {
-                                    allMembersData.clear();
-                                    allMembersData.addAll(gCachedMembers);
-                                    loadHint.setText("共 " + allMembersData.size() + " 人");
-                                    renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue);
+                // 后台加载当前群成员
+                new Thread(new Runnable() {
+                    public void run() {
+                        if (fGroupUin != null && fGroupUin.length() > 0 && !fGroupUin.equals("0")) {
+                            List ml = members(fGroupUin, false);
+                            if (ml != null) {
+                                for (int i = 0; i < ml.size(); i++) {
+                                    Object m = ml.get(i);
+                                    String uin = getMemberUin(m);
+                                    if (uin == null) continue;
+                                    String nick = getDisplayNick(m);
+                                    if (nick == null || nick.length() == 0) nick = uin;
+                                    allMembersData.add(nick + "|" + uin);
                                 }
-                            });
+                            }
                         }
-                    }).start();
-                }
+                        act.runOnUiThread(new Runnable() {
+                            public void run() {
+                                loadHint.setText("共 " + allMembersData.size() + " 人");
+                                renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue);
+                            }
+                        });
+                    }
+                }).start();
 
                 // 搜索按钮
                 TextView doSearchBtn = new TextView(act);
@@ -652,8 +575,6 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                         renderMemberRows(memberList, allMembersData, selectedUins, kw, act, blue);
                     }
                 });
-                    }
-                }).start();
 
                 // 确认按钮
                 final TextView btnConfirm2 = makeActionBtn(act, "确认选择 0 人", Color.WHITE, blue);
@@ -1221,7 +1142,6 @@ void startNickThread() {
 
 void main() {
     loadConfig();
-    loadMemberCache();
     new Thread(new Runnable() {
         public void run() {
             loadCiku();
