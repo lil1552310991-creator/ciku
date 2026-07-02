@@ -1,5 +1,5 @@
 // 生成一行开关（省代码）
-void addSwitchBar(LinearLayout parent, String[] names, final boolean[] vals, int from, int to, Object act, int blue) {
+void addSwitchBar(LinearLayout parent, String[] names, boolean[] vals, int from, int to, Object act, int blue) {
     LinearLayout row = new LinearLayout(act);
     row.setOrientation(LinearLayout.HORIZONTAL);
     for (int i = from; i < to; i++) {
