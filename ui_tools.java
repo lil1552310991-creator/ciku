@@ -23,7 +23,7 @@ void addSwitchBar(LinearLayout parent, String[] names, boolean[] vals, int from,
 void showMemberPicker(String groupUin, EditText targetInput) {
     final Activity act = getThreadActivity();
     if (act == null) return;
-    final String fGroupUin = groupUin;
+    final String fGroupUin = (groupUin != null) ? groupUin : "";
     act.runOnUiThread(new Runnable() {
         public void run() {
             try {
@@ -37,8 +37,24 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                 card.setBackground(roundRect(Color.WHITE, dp(act, 14)));
                 card.setPadding(dp(act, 14), dp(act, 14), dp(act, 14), dp(act, 14));
 
+                // 非群聊提示
+                if (fGroupUin.length() == 0 || fGroupUin.equals("0")) {
+                    TextView warn = new TextView(act);
+                    warn.setText("⚠️ 请在群聊中打开此功能\n私聊无法获取群成员列表"); warn.setTextSize(13);
+                    warn.setTextColor(Color.parseColor("#FF6600")); warn.setGravity(Gravity.CENTER);
+                    warn.setPadding(0, dp(act, 20), 0, dp(act, 20));
+                    card.addView(warn);
+                    TextView cls = makeActionBtn(act, "关闭", Color.WHITE, blue);
+                    cls.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { d.dismiss(); }});
+                    card.addView(cls);
+                    d.setContentView(card);
+                    d.getWindow().setLayout((int)(act.getResources().getDisplayMetrics().widthPixels * 0.85), -2);
+                    d.show();
+                    return;
+                }
+
                 TextView title = new TextView(act);
-                title.setText("群成员选择（勾选=添加）"); title.setTextSize(14);
+                title.setText("群成员选择（仅本群成员）"); title.setTextSize(14);
                 title.setTextColor(Color.BLACK); title.getPaint().setFakeBoldText(true);
                 card.addView(title);
 
@@ -72,13 +88,13 @@ void showMemberPicker(String groupUin, EditText targetInput) {
 
                 final List selectedUins = new ArrayList();
                 final List allMembersData = new ArrayList();
-                final int PAGE_SIZE = 80;  // 分页渲染，避免卡顿
-                final List renderPage = new ArrayList(); renderPage.add(new Integer(0)); // [0]=当前页码
+                final int PAGE_SIZE = 80;
 
-                // 后台加载当前群成员
+                // 后台加载当前群成员（每次打开都重新加载）
                 new Thread(new Runnable() {
                     public void run() {
-                        if (fGroupUin != null && fGroupUin.length() > 0 && !fGroupUin.equals("0")) {
+                        if (fGroupUin.length() > 0 && !fGroupUin.equals("0")) {
+                            allMembersData.clear();
                             List ml = members(fGroupUin, false);
                             if (ml != null) {
                                 for (int i = 0; i < ml.size(); i++) {
@@ -93,18 +109,17 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                         }
                         act.runOnUiThread(new Runnable() {
                             public void run() {
-                                loadHint.setText("共 " + allMembersData.size() + " 人");
+                                loadHint.setText("共 " + allMembersData.size() + " 人（仅本群）");
                                 renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue, 0, PAGE_SIZE);
                             }
                         });
                     }
                 }).start();
 
-                // 搜索按钮
+                // 搜索
                 doSearchBtn.setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) {
                         String kw = searchEt.getText().toString().trim();
-                        renderPage.set(0, new Integer(0));
                         renderMemberRows(memberList, allMembersData, selectedUins, kw, act, blue, 0, PAGE_SIZE);
                     }
                 });
