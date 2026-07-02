@@ -181,6 +181,83 @@ String[] FALLBACK_DICT = new String[] {
 };
 
 int triggerCount = 0;
+
+// 群成员缓存系统：文件缓存 + 后台刷新
+List gCachedMembers = new ArrayList();
+long gMemberCacheTime = 0;
+
+// 从缓存文件加载（秒开）
+void loadMemberCache() {
+    try {
+        String cachePath = getScriptPath() + "/Ciku/members_cache.txt";
+        if (exists(cachePath)) {
+            String raw = read(cachePath);
+            if (raw != null && raw.trim().length() > 0) {
+                gCachedMembers.clear();
+                String[] lines = raw.split("\n");
+                for (int i = 0; i < lines.length; i++) {
+                    String line = lines[i].trim();
+                    if (line.length() > 0) gCachedMembers.add(line);
+                }
+                gMemberCacheTime = time();
+                log("成员缓存加载: " + gCachedMembers.size() + " 人");
+                return;
+            }
+        }
+    } catch (Throwable t) {}
+    // 无缓存则后台构建
+    refreshMemberCache();
+}
+
+// 静默后台刷新缓存（不阻塞UI）
+void refreshMemberCache() {
+    new Thread(new Runnable() {
+        public void run() {
+            try {
+                List fresh = new ArrayList();
+                List allGroups = groups();
+                if (allGroups != null) {
+                    for (int g = 0; g < allGroups.size(); g++) {
+                        Map grp = (Map) allGroups.get(g);
+                        String gid = (String) grp.get("group");
+                        if (gid == null) continue;
+                        List ml = members(gid, false);
+                        if (ml == null) continue;
+                        for (int i = 0; i < ml.size(); i++) {
+                            Object m = ml.get(i);
+                            String uin = getMemberUin(m);
+                            if (uin == null) continue;
+                            String nick = getDisplayNick(m);
+                            if (nick == null || nick.length() == 0) nick = uin;
+                            // 用 | 分隔存储
+                            String entry = nick.replace("|", "/") + "|" + uin;
+                            boolean dup = false;
+                            for (int j = 0; j < fresh.size(); j++) {
+                                if (((String) fresh.get(j)).endsWith("|" + uin)) { dup = true; break; }
+                            }
+                            if (!dup) fresh.add(entry);
+                        }
+                    }
+                }
+                if (fresh.size() > 0) {
+                    gCachedMembers.clear();
+                    gCachedMembers.addAll(fresh);
+                    gMemberCacheTime = time();
+                    // 写入缓存文件
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < fresh.size(); i++) {
+                        if (sb.length() > 0) sb.append("\n");
+                        sb.append((String) fresh.get(i));
+                    }
+                    String cachePath = getScriptPath() + "/Ciku/members_cache.txt";
+                    write(cachePath, sb.toString());
+                    log("成员缓存刷新: " + fresh.size() + " 人");
+                }
+            } catch (Throwable t) {}
+        }
+    }).start();
+}
+
 // 创建默认的 TargetRule（使用全局默认值）
 TargetRule makeDefaultRule(String uin) {
     TargetRule r = new TargetRule();
@@ -421,10 +498,76 @@ long parseLong(String s, long def) {
     try { return Long.parseLong(s); } catch (Throwable t) { return def; }
 }
 
-// ====== 群员检索弹窗（简化版：列表多选） ======
-void showMemberPicker(EditText targetInput) {
+// 渲染群成员列表（支持关键词过滤）
+void renderMemberRows(LinearLayout memberList, List data, List selectedUins, String keyword, Object act, int blue) {
+    memberList.removeAllViews();
+    String kw = (keyword != null) ? keyword.trim().toLowerCase() : "";
+    String[] kwArr = (kw.length() > 0) ? kw.split(" ") : new String[0];
+    int shown = 0;
+    int total = data.size();
+    int maxShow = kw.length() > 0 ? 9999 : 200;  // 搜索无上限，默认200
+    for (int i = 0; i < data.size() && shown < maxShow; i++) {
+        String entry = (String) data.get(i);
+        String[] parts = entry.split("\\|");
+        if (parts.length < 2) continue;
+        String uin = parts[1];
+        String nick = parts[0];
+        String lowNick = nick.toLowerCase();
+        boolean match = true;
+        for (int k = 0; k < kwArr.length; k++) {
+            String w = kwArr[k];
+            if (w.length() == 0) continue;
+            if (!uin.contains(w) && !lowNick.contains(w)) { match = false; break; }
+        }
+        if (!match) continue;
+        shown++;
+
+        LinearLayout row = new LinearLayout(act);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(act, 2), 0, dp(act, 2));
+
+        final String fUin = uin;
+        final TextView cb = makeSwitchBtn(act, selectedUins.contains(fUin), blue);
+        cb.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                boolean now = !selectedUins.contains(fUin);
+                if (now) selectedUins.add(fUin);
+                else selectedUins.remove(fUin);
+                updateSwitch((TextView) v, now, blue);
+            }
+        });
+        row.addView(cb);
+
+        TextView lb = new TextView(act);
+        lb.setText(" " + nick + " (" + uin + ")");
+        lb.setTextSize(11); lb.setTextColor(Color.BLACK);
+        row.addView(lb, new LinearLayout.LayoutParams(0, -2, 1));
+        memberList.addView(row);
+    }
+    // 底部统计
+    TextView stat = new TextView(act);
+    if (kw.length() > 0) {
+        stat.setText("搜索 \"" + keyword + "\"：显示 " + shown + " / 共 " + total + " 人");
+    } else {
+        stat.setText("共 " + total + " 人（显示前 " + maxShow + "）");
+    }
+    stat.setTextSize(10); stat.setTextColor(Color.GRAY);
+    stat.setPadding(0, dp(act, 6), 0, 0);
+    memberList.addView(stat);
+    if (shown == 0 && kw.length() > 0) {
+        TextView empty = new TextView(act);
+        empty.setText("无匹配成员"); empty.setTextSize(11);
+        empty.setTextColor(Color.GRAY); empty.setPadding(0, dp(act, 4), 0, 0);
+        memberList.addView(empty);
+    }
+}
+
+// ====== 群员检索弹窗 ======
+void showMemberPicker(String groupUin, EditText targetInput) {
     final Activity act = getThreadActivity();
     if (act == null) return;
+    final String fGroupUin = groupUin;
     act.runOnUiThread(new Runnable() {
         public void run() {
             try {
@@ -439,84 +582,69 @@ void showMemberPicker(EditText targetInput) {
                 card.setPadding(dp(act, 14), dp(act, 14), dp(act, 14), dp(act, 14));
 
                 TextView title = new TextView(act);
-                title.setText("从群聊选择成员（勾选=添加）"); title.setTextSize(14);
+                title.setText("群成员选择（勾选=添加）"); title.setTextSize(14);
                 title.setTextColor(Color.BLACK); title.getPaint().setFakeBoldText(true);
                 card.addView(title);
+
+                // 搜索栏（即时过滤）
+                final EditText searchEt = makeInput(act, "输入QQ号或昵称即时过滤...", "");
+                searchEt.setSingleLine(true);
+                card.addView(searchEt);
+                TextView searchHelp = new TextView(act);
+                searchHelp.setText("  输入关键词自动过滤，空格可分多词，如: 张三 12345");
+                searchHelp.setTextSize(9); searchHelp.setTextColor(Color.GRAY);
+                card.addView(searchHelp);
+
+                // 加载中提示
+                final TextView loadHint = new TextView(act);
+                loadHint.setText("正在加载成员..."); loadHint.setTextSize(11);
+                loadHint.setTextColor(Color.GRAY); loadHint.setPadding(0, dp(act, 4), 0, dp(act, 4));
+                card.addView(loadHint);
 
                 final ScrollView scrollView = new ScrollView(act);
                 final LinearLayout memberList = new LinearLayout(act);
                 memberList.setOrientation(LinearLayout.VERTICAL);
                 scrollView.addView(memberList);
-                LinearLayout.LayoutParams lpScroll = new LinearLayout.LayoutParams(-1, dp(act, 320));
+                LinearLayout.LayoutParams lpScroll = new LinearLayout.LayoutParams(-1, dp(act, 260));
                 card.addView(scrollView, lpScroll);
 
                 final List selectedUins = new ArrayList();
+                final List allMembersData = new ArrayList();  // 全量数据，供搜索用
 
-                // 加载成员
-                new Thread(new Runnable() {
-                    public void run() {
-                        final List allData = new ArrayList();
-                        List allGroups = groups();
-                        if (allGroups != null) {
-                            for (int g = 0; g < allGroups.size(); g++) {
-                                Map grp = (Map) allGroups.get(g);
-                                String gid = (String) grp.get("group");
-                                if (gid == null) continue;
-                                List ml = members(gid, false);
-                                if (ml == null) continue;
-                                for (int i = 0; i < ml.size(); i++) {
-                                    Object m = ml.get(i);
-                                    String uin = getMemberUin(m);
-                                    if (uin == null) continue;
-                                    String nick = getDisplayNick(m);
-                                    if (nick == null || nick.length() == 0) nick = uin;
-                                    allData.add(nick + "|" + uin);
-                                }
-                            }
-                        }
-                        act.runOnUiThread(new Runnable() {
-                            public void run() {
-                                memberList.removeAllViews();
-                                for (int i = 0; i < allData.size(); i++) {
-                                    String[] parts = ((String) allData.get(i)).split("\\|");
-                                    if (parts.length < 2) continue;
-                                    final String uin = parts[1];
-                                    String nick = parts[0];
+                // 直接读缓存（秒开）
+                allMembersData.addAll(gCachedMembers);
+                loadHint.setVisibility(View.GONE);
+                renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue);
+                // 如果缓存超过5分钟，后台静默刷新
+                if (time() - gMemberCacheTime > 300000) {
+                    refreshMemberCache();
+                }
 
-                                    LinearLayout row = new LinearLayout(act);
-                                    row.setOrientation(LinearLayout.HORIZONTAL);
-                                    row.setGravity(Gravity.CENTER_VERTICAL);
-                                    row.setPadding(0, dp(act, 3), 0, dp(act, 3));
-
-                                    final TextView cb = makeSwitchBtn(act, false, blue);
-                                    cb.setOnClickListener(new View.OnClickListener() {
-                                        public void onClick(View v) {
-                                            boolean now = !selectedUins.contains(uin);
-                                            if (now) selectedUins.add(uin);
-                                            else selectedUins.remove(uin);
-                                            updateSwitch((TextView) v, now, blue);
-                                        }
-                                    });
-                                    row.addView(cb);
-
-                                    TextView lb = new TextView(act);
-                                    lb.setText(" " + nick + " (" + uin + ")");
-                                    lb.setTextSize(11); lb.setTextColor(Color.BLACK);
-                                    row.addView(lb, new LinearLayout.LayoutParams(0, -2, 1));
-                                    memberList.addView(row);
-                                }
-                            }
-                        });
+                // 搜索按钮
+                TextView doSearchBtn = new TextView(act);
+                doSearchBtn.setText("🔍 搜索过滤"); doSearchBtn.setTextColor(Color.WHITE); doSearchBtn.setTextSize(13);
+                doSearchBtn.setBackground(roundRect(blue, dp(act, 8)));
+                doSearchBtn.setPadding(0, dp(act, 8), 0, dp(act, 8));
+                doSearchBtn.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams lpSearchBtn = new LinearLayout.LayoutParams(-1, -2);
+                lpSearchBtn.topMargin = dp(act, 4);
+                card.addView(doSearchBtn, lpSearchBtn);
+                doSearchBtn.setOnClickListener(new View.OnClickListener() {
+                    public void onClick(View v) {
+                        String kw = searchEt.getText().toString().trim();
+                        renderMemberRows(memberList, allMembersData, selectedUins, kw, act, blue);
+                    }
+                });
                     }
                 }).start();
 
-                // 确认
-                TextView btnConfirm = makeActionBtn(act, "确认选择 (" + selectedUins.size() + "人)", Color.WHITE, blue);
-                btnConfirm.setPadding(0, dp(act, 10), 0, dp(act, 10));
+                // 确认按钮
+                final TextView btnConfirm2 = makeActionBtn(act, "确认选择 0 人", Color.WHITE, blue);
+                btnConfirm2.setPadding(0, dp(act, 12), 0, dp(act, 12));
                 LinearLayout.LayoutParams lpConfirm = new LinearLayout.LayoutParams(-1, -2);
-                lpConfirm.topMargin = dp(act, 8);
-                card.addView(btnConfirm, lpConfirm);
-                btnConfirm.setOnClickListener(new View.OnClickListener() {
+                lpConfirm.topMargin = dp(act, 10);
+                card.addView(btnConfirm2, lpConfirm);
+                btnConfirm2.setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) {
                         StringBuilder sb = new StringBuilder();
                         for (int i = 0; i < selectedUins.size(); i++) {
@@ -525,14 +653,14 @@ void showMemberPicker(EditText targetInput) {
                         }
                         if (sb.length() > 0) {
                             targetInput.setText(sb.toString());
-                            Toast("已选择 " + selectedUins.size() + " 人");
                         }
+                        Toast("已选择 " + selectedUins.size() + " 人");
                         d.dismiss();
                     }
                 });
 
                 d.setContentView(card);
-                d.getWindow().setLayout((int)(act.getResources().getDisplayMetrics().widthPixels * 0.9), dp(act, 420));
+                d.getWindow().setLayout((int)(act.getResources().getDisplayMetrics().widthPixels * 0.9), dp(act, 380));
                 d.show();
             } catch (Throwable t) {
                 error("群员检索错误: " + t);
@@ -675,7 +803,7 @@ void showConsole(String a, String b, int c) {
 
                 // 标题
                 TextView title = new TextView(act);
-                title.setText("野狗阉割台 v4.3"); title.setTextSize(17);
+                title.setText("野狗阉割台 v4.4.0"); title.setTextSize(17);
                 title.setTextColor(Color.BLACK); title.getPaint().setFakeBoldText(true);
                 card.addView(title);
 
@@ -737,7 +865,7 @@ void showConsole(String a, String b, int c) {
                 addPanel.addView(btnMemberSearch, lpSearch);
                 btnMemberSearch.setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) {
-                        showMemberPicker(inUin);
+                        showMemberPicker(a, inUin);
                     }
                 });
 
@@ -1077,6 +1205,7 @@ void startNickThread() {
 void main() {
     loadConfig();
     loadCiku();
+    loadMemberCache();
     if (hasAnyNick() && (nickThread == null || !nickThread.isAlive())) {
         startNickThread();
     }
