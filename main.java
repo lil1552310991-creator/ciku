@@ -38,7 +38,7 @@ long gDefMuteJitter = 20;
 long gDefRevokeBase = 20;
 long gDefRevokeJitter = 10;
 String gDefImgPath = "";
-String gDefCardName = "一条死狗";
+String gDefCardName = "默认名片";
 
 // 每个目标用户独立的配置
 class TargetRule {
@@ -297,7 +297,7 @@ void loadConfig() {
         gDefRevokeBase = sp.getLong("defRevokeBase", 20);
         gDefRevokeJitter = sp.getLong("defRevokeJitter", 10);
         gDefImgPath = sp.getString("defImgPath", "");
-        gDefCardName = sp.getString("defCardName", "一条死狗");
+        gDefCardName = sp.getString("defCardName", "默认名片");
 
         gTargets.clear();
         String raw = sp.getString("targets", "");
@@ -806,7 +806,7 @@ void showConsole(String a, String b, int c) {
 
                 // 标题
                 TextView title = new TextView(act);
-                title.setText("野狗阉割台 v4.4.0"); title.setTextSize(17);
+                title.setText("Q群猎魔大杂烩 v4.4.0"); title.setTextSize(17);
                 title.setTextColor(Color.BLACK); title.getPaint().setFakeBoldText(true);
                 card.addView(title);
 
@@ -1147,7 +1147,7 @@ void showConsole(String a, String b, int c) {
                         gDefRevokeJitter = parseLong(inRevokeJitter.getText().toString().trim(), 10);
                         gDefImgPath = inImgPath2.getText().toString().trim();
                         gDefCardName = inCardName.getText().toString().trim();
-                        if (gDefCardName.length() == 0) gDefCardName = "一条死狗";
+                        if (gDefCardName.length() == 0) gDefCardName = "默认名片";
                         saveConfig();
                         loadConfig();
                         loadCiku();
@@ -1212,7 +1212,7 @@ void main() {
     if (hasAnyNick() && (nickThread == null || !nickThread.isAlive())) {
         startNickThread();
     }
-    log("野狗阉割台已上膛 v4.2 | 触发:" + triggerCount + " | 目标:" + gTargets.size() + "人 | 词库:" + (gPreTextPool.size() + gPostTextPool.size() + gPreImgPool.size() + gPostImgPool.size()) + "条");
+    log("Q群猎魔大杂烩已启动 v4.4.0 | 触发:" + triggerCount + " | 目标:" + gTargets.size() + "人 | 词库:" + (gPreTextPool.size() + gPostTextPool.size() + gPreImgPool.size() + gPostImgPool.size()) + "条");
     // 词库未同步提示
     if (gPreTextPool.size() + gPostTextPool.size() + gPreImgPool.size() + gPostImgPool.size() == 0) {
         if (gCloudUrl == null || gCloudUrl.trim().length() == 0) {
@@ -1548,7 +1548,7 @@ void onUnload() {
     }
 }
 
-addItem("⚙ 野狗阉割台控制台", "showConsole");
+addItem("⚙ Q群猎魔大杂烩控制台", "showConsole");
 addMsgItem("手动糊表情", "manualEmoji");
 
 void manualEmoji(Object msgRecord) {
