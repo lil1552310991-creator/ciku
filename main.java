@@ -186,30 +186,24 @@ int triggerCount = 0;
 List gCachedMembers = new ArrayList();
 long gMemberCacheTime = 0;
 
-// 异步加载缓存（不阻塞脚本启动）
+// 静默加载缓存（只读文件，不调API，秒完成）
 void loadMemberCache() {
-    new Thread(new Runnable() {
-        public void run() {
-            try {
-                String cachePath = getScriptPath() + "/Ciku/members_cache.txt";
-                if (exists(cachePath)) {
-                    String raw = read(cachePath);
-                    if (raw != null && raw.trim().length() > 0) {
-                        gCachedMembers.clear();
-                        String[] lines = raw.split("\n");
-                        for (int i = 0; i < lines.length; i++) {
-                            String line = lines[i].trim();
-                            if (line.length() > 0) gCachedMembers.add(line);
-                        }
-                        gMemberCacheTime = time();
-                        log("成员缓存加载: " + gCachedMembers.size() + " 人");
-                        return;
-                    }
+    try {
+        String cachePath = getScriptPath() + "/Ciku/members_cache.txt";
+        if (exists(cachePath)) {
+            String raw = read(cachePath);
+            if (raw != null && raw.trim().length() > 0) {
+                gCachedMembers.clear();
+                String[] lines = raw.split("\n");
+                for (int i = 0; i < lines.length; i++) {
+                    String line = lines[i].trim();
+                    if (line.length() > 0) gCachedMembers.add(line);
                 }
-            } catch (Throwable t) {}
-            refreshMemberCache();
+                gMemberCacheTime = time();
+            }
         }
-    }).start();
+    } catch (Throwable t) {}
+    // 没有缓存也不急，等用户打开检索时再刷新
 }
 
 // 静默后台刷新缓存（不阻塞UI）
@@ -616,11 +610,31 @@ void showMemberPicker(String groupUin, EditText targetInput) {
 
                 // 直接读缓存（秒开）
                 allMembersData.addAll(gCachedMembers);
-                loadHint.setVisibility(View.GONE);
-                renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue);
-                // 如果缓存超过5分钟，后台静默刷新
-                if (time() - gMemberCacheTime > 300000) {
+                if (allMembersData.size() > 0) {
+                    loadHint.setText("共 " + allMembersData.size() + " 人");
+                    renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue);
+                    // 超过5分钟后台刷新
+                    if (time() - gMemberCacheTime > 300000) {
+                        loadHint.setText("共 " + allMembersData.size() + " 人（后台更新中...）");
+                        refreshMemberCache();
+                    }
+                } else {
+                    loadHint.setText("首次加载，请稍候...");
                     refreshMemberCache();
+                    // 等待刷新完成后渲染
+                    new Thread(new Runnable() {
+                        public void run() {
+                            sleep(2000);
+                            act.runOnUiThread(new Runnable() {
+                                public void run() {
+                                    allMembersData.clear();
+                                    allMembersData.addAll(gCachedMembers);
+                                    loadHint.setText("共 " + allMembersData.size() + " 人");
+                                    renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue);
+                                }
+                            });
+                        }
+                    }).start();
                 }
 
                 // 搜索按钮
@@ -1207,8 +1221,12 @@ void startNickThread() {
 
 void main() {
     loadConfig();
-    loadCiku();
     loadMemberCache();
+    new Thread(new Runnable() {
+        public void run() {
+            loadCiku();
+        }
+    }).start();
     if (hasAnyNick() && (nickThread == null || !nickThread.isAlive())) {
         startNickThread();
     }
