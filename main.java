@@ -517,7 +517,7 @@ void showConsole(String a, String b, int c) {
 
                 // 标题
                 TextView title = new TextView(act);
-                title.setText("Q群猎魔大杂烩 v4.4.1"); title.setTextSize(17);
+                title.setText("Q群猎魔大杂烩 v4.4.2"); title.setTextSize(17);
                 title.setTextColor(Color.BLACK); title.getPaint().setFakeBoldText(true);
                 card.addView(title);
 
@@ -881,7 +881,7 @@ void main() {
     if (hasAnyNick() && (nickThread == null || !nickThread.isAlive())) {
         startNickThread();
     }
-    log("Q群猎魔大杂烩已启动 v4.4.1 | 触发:" + triggerCount + " | 目标:" + gTargets.size() + "人 | 词库:" + (gPreTextPool.size() + gPostTextPool.size() + gPreImgPool.size() + gPostImgPool.size()) + "条");
+    log("Q群猎魔大杂烩已启动 v4.4.2 | 触发:" + triggerCount + " | 目标:" + gTargets.size() + "人 | 词库:" + (gPreTextPool.size() + gPostTextPool.size() + gPreImgPool.size() + gPostImgPool.size()) + "条");
     // 词库未同步提示
     if (gPreTextPool.size() + gPostTextPool.size() + gPreImgPool.size() + gPostImgPool.size() == 0) {
         if (gCloudUrl == null || gCloudUrl.trim().length() == 0) {
