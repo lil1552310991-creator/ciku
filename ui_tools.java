@@ -90,21 +90,31 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                 final List allMembersData = new ArrayList();
                 final int PAGE_SIZE = 80;
 
-                // 后台加载当前群成员（每次打开都重新加载）
+                // 后台加载当前群成员
                 new Thread(new Runnable() {
                     public void run() {
-                        if (fGroupUin.length() > 0 && !fGroupUin.equals("0")) {
-                            allMembersData.clear();
-                            List ml = members(fGroupUin, false);
-                            if (ml != null) {
-                                for (int i = 0; i < ml.size(); i++) {
-                                    Object m = ml.get(i);
-                                    String uin = getMemberUin(m);
-                                    if (uin == null) continue;
-                                    String nick = getDisplayNick(m);
-                                    if (nick == null || nick.length() == 0) nick = uin;
-                                    allMembersData.add(nick + "|" + uin);
-                                }
+                        allMembersData.clear();
+                        // 找到正确的群号：遍历群列表匹配 UID 或群号
+                        String realGid = fGroupUin;
+                        List allGroups = groups();
+                        if (allGroups != null && fGroupUin.length() > 0 && !fGroupUin.equals("0")) {
+                            for (int g = 0; g < allGroups.size(); g++) {
+                                Map grp = (Map) allGroups.get(g);
+                                String gid = (String) grp.get("group");
+                                if (gid == null) continue;
+                                // 直接匹配群号，或匹配群信息中的UID
+                                if (fGroupUin.equals(gid)) { realGid = gid; break; }
+                            }
+                        }
+                        List ml = members(realGid, false);
+                        if (ml != null) {
+                            for (int i = 0; i < ml.size(); i++) {
+                                Object m = ml.get(i);
+                                String uin = getMemberUin(m);
+                                if (uin == null) continue;
+                                String nick = getDisplayNick(m);
+                                if (nick == null || nick.length() == 0) nick = uin;
+                                allMembersData.add(nick + "|" + uin);
                             }
                         }
                         act.runOnUiThread(new Runnable() {
