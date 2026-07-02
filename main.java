@@ -423,14 +423,14 @@ long parseLong(String s, long def) {
 }
 
 // 渲染群成员列表（支持关键词过滤）
-void renderMemberRows(LinearLayout memberList, List data, List selectedUins, String keyword, Object act, int blue) {
+void renderMemberRows(LinearLayout memberList, List data, List selectedUins, String keyword, Object act, int blue, int pageStart, int pageSize) {
     memberList.removeAllViews();
     String kw = (keyword != null) ? keyword.trim().toLowerCase() : "";
     String[] kwArr = (kw.length() > 0) ? kw.split(" ") : new String[0];
     int shown = 0;
     int total = data.size();
-    int maxShow = 99999;  // 无上限
-    for (int i = 0; i < data.size() && shown < maxShow; i++) {
+    int matched = 0;
+    for (int i = 0; i < data.size(); i++) {
         String entry = (String) data.get(i);
         String[] parts = entry.split("\\|");
         if (parts.length < 2) continue;
@@ -444,12 +444,15 @@ void renderMemberRows(LinearLayout memberList, List data, List selectedUins, Str
             if (!uin.contains(w) && !lowNick.contains(w)) { match = false; break; }
         }
         if (!match) continue;
+        matched++;
+        if (matched <= pageStart) continue;
+        if (shown >= pageSize) continue;
         shown++;
 
         LinearLayout row = new LinearLayout(act);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(act, 2), 0, dp(act, 2));
+        row.setPadding(0, dp(act, 1), 0, dp(act, 1));
 
         final String fUin = uin;
         final TextView cb = makeSwitchBtn(act, selectedUins.contains(fUin), blue);
@@ -469,20 +472,31 @@ void renderMemberRows(LinearLayout memberList, List data, List selectedUins, Str
         row.addView(lb, new LinearLayout.LayoutParams(0, -2, 1));
         memberList.addView(row);
     }
-    // 底部统计
+    // 统计
     TextView stat = new TextView(act);
-    if (kw.length() > 0) {
-        stat.setText("搜索 \"" + keyword + "\"：显示 " + shown + " / 共 " + total + " 人");
-    } else {
-        stat.setText("共 " + total + " 人");
-    }
+    String info = kw.length() > 0 ? "搜索\"" + keyword + "\"：匹配 " + matched + " 人" : "共 " + total + " 人";
+    if (matched > pageStart + pageSize) info = info + "（已显示 " + (pageStart + shown) + "，下拉加载更多）";
+    stat.setText(info);
     stat.setTextSize(10); stat.setTextColor(Color.GRAY);
-    stat.setPadding(0, dp(act, 6), 0, 0);
+    stat.setPadding(0, dp(act, 4), 0, 0);
     memberList.addView(stat);
-    if (shown == 0 && kw.length() > 0) {
+    // 加载更多按钮
+    if (matched > pageStart + pageSize) {
+        TextView moreBtn = new TextView(act);
+        moreBtn.setText("▼ 加载更多"); moreBtn.setTextColor(blue); moreBtn.setTextSize(11);
+        moreBtn.setPadding(0, dp(act, 3), 0, dp(act, 3));
+        final int nextPage = pageStart + pageSize;
+        moreBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                renderMemberRows(memberList, data, selectedUins, keyword, act, blue, nextPage, pageSize);
+            }
+        });
+        memberList.addView(moreBtn);
+    }
+    if (matched == 0 && kw.length() > 0) {
         TextView empty = new TextView(act);
         empty.setText("无匹配成员"); empty.setTextSize(11);
-        empty.setTextColor(Color.GRAY); empty.setPadding(0, dp(act, 4), 0, 0);
+        empty.setTextColor(Color.GRAY); empty.setPadding(0, dp(act, 3), 0, 0);
         memberList.addView(empty);
     }
 }
