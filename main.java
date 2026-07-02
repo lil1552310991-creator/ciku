@@ -422,7 +422,7 @@ long parseLong(String s, long def) {
 }
 
 // ====== 群员检索弹窗（简化版：列表多选） ======
-void showMemberPicker(final EditText targetInput) {
+void showMemberPicker(EditText targetInput) {
     final Activity act = getThreadActivity();
     if (act == null) return;
     act.runOnUiThread(new Runnable() {
@@ -917,7 +917,13 @@ void showConsole(String a, String b, int c) {
                             row1.setGravity(Gravity.CENTER_VERTICAL);
                             String grpInfo = (r.groupId == null || r.groupId.length() == 0 || r.groupId.equals("0")) ? "全群" : "群" + r.groupId;
                             TextView info = new TextView(act);
-                            info.setText("QQ:" + r.uin + " [" + grpInfo + "] 禁" + r.muteBase + "±" + r.muteJitter + "s 撤" + r.revokeBase + "±" + r.revokeJitter + "s");
+                            long muteLo = r.muteBase - r.muteJitter; if (muteLo < 1) muteLo = 1;
+                            long muteHi = r.muteBase + r.muteJitter;
+                            long revLo = r.revokeBase - r.revokeJitter; if (revLo < 1) revLo = 1;
+                            long revHi = r.revokeBase + r.revokeJitter;
+                            long stepLo = (r.stepBase - r.stepJitter) / 1000;
+                            long stepHi = (r.stepBase + r.stepJitter) / 1000;
+                            info.setText("QQ:" + r.uin + " [" + grpInfo + "] 禁" + muteLo + "~" + muteHi + "s 撤" + revLo + "~" + revHi + "s 连" + stepLo + "~" + stepHi + "s");
                             info.setTextSize(10); info.setTextColor(Color.BLACK);
 
                             TextView editBtn = new TextView(act);
