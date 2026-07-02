@@ -474,7 +474,7 @@ void renderMemberRows(LinearLayout memberList, List data, List selectedUins, Str
     if (kw.length() > 0) {
         stat.setText("搜索 \"" + keyword + "\"：显示 " + shown + " / 共 " + total + " 人");
     } else {
-        stat.setText("共 " + total + " 人（显示前 " + maxShow + "）");
+        stat.setText("共 " + total + " 人");
     }
     stat.setTextSize(10); stat.setTextColor(Color.GRAY);
     stat.setPadding(0, dp(act, 6), 0, 0);
