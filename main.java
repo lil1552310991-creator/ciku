@@ -429,7 +429,7 @@ void renderMemberRows(LinearLayout memberList, List data, List selectedUins, Str
     String[] kwArr = (kw.length() > 0) ? kw.split(" ") : new String[0];
     int shown = 0;
     int total = data.size();
-    int maxShow = kw.length() > 0 ? 9999 : 200;  // 搜索无上限，默认200
+    int maxShow = 99999;  // 无上限
     for (int i = 0; i < data.size() && shown < maxShow; i++) {
         String entry = (String) data.get(i);
         String[] parts = entry.split("\\|");
