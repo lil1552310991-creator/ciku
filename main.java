@@ -186,27 +186,30 @@ int triggerCount = 0;
 List gCachedMembers = new ArrayList();
 long gMemberCacheTime = 0;
 
-// 从缓存文件加载（秒开）
+// 异步加载缓存（不阻塞脚本启动）
 void loadMemberCache() {
-    try {
-        String cachePath = getScriptPath() + "/Ciku/members_cache.txt";
-        if (exists(cachePath)) {
-            String raw = read(cachePath);
-            if (raw != null && raw.trim().length() > 0) {
-                gCachedMembers.clear();
-                String[] lines = raw.split("\n");
-                for (int i = 0; i < lines.length; i++) {
-                    String line = lines[i].trim();
-                    if (line.length() > 0) gCachedMembers.add(line);
+    new Thread(new Runnable() {
+        public void run() {
+            try {
+                String cachePath = getScriptPath() + "/Ciku/members_cache.txt";
+                if (exists(cachePath)) {
+                    String raw = read(cachePath);
+                    if (raw != null && raw.trim().length() > 0) {
+                        gCachedMembers.clear();
+                        String[] lines = raw.split("\n");
+                        for (int i = 0; i < lines.length; i++) {
+                            String line = lines[i].trim();
+                            if (line.length() > 0) gCachedMembers.add(line);
+                        }
+                        gMemberCacheTime = time();
+                        log("成员缓存加载: " + gCachedMembers.size() + " 人");
+                        return;
+                    }
                 }
-                gMemberCacheTime = time();
-                log("成员缓存加载: " + gCachedMembers.size() + " 人");
-                return;
-            }
+            } catch (Throwable t) {}
+            refreshMemberCache();
         }
-    } catch (Throwable t) {}
-    // 无缓存则后台构建
-    refreshMemberCache();
+    }).start();
 }
 
 // 静默后台刷新缓存（不阻塞UI）
