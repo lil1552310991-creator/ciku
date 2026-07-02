@@ -61,7 +61,7 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                 final LinearLayout memberList = new LinearLayout(act);
                 memberList.setOrientation(LinearLayout.VERTICAL);
                 scrollView.addView(memberList);
-                LinearLayout.LayoutParams lpScroll = new LinearLayout.LayoutParams(-1, dp(act, 260));
+                LinearLayout.LayoutParams lpScroll = new LinearLayout.LayoutParams(-1, dp(act, 280));
                 card.addView(scrollView, lpScroll);
 
                 final List selectedUins = new ArrayList();
@@ -109,9 +109,12 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                 });
 
                 // 确认按钮
-                final TextView btnConfirm2 = makeActionBtn(act, "确认选择 0 人", Color.WHITE, blue);
-                btnConfirm2.setPadding(0, dp(act, 12), 0, dp(act, 12));
-                LinearLayout.LayoutParams lpConfirm = new LinearLayout.LayoutParams(-1, -2);
+                final TextView btnConfirm2 = new TextView(act);
+                btnConfirm2.setText("确认选择"); btnConfirm2.setTextSize(15);
+                btnConfirm2.setTextColor(Color.WHITE); btnConfirm2.setGravity(Gravity.CENTER);
+                btnConfirm2.setBackground(roundRect(blue, dp(act, 8)));
+                btnConfirm2.setPadding(0, dp(act, 14), 0, dp(act, 14));
+                LinearLayout.LayoutParams lpConfirm = new LinearLayout.LayoutParams(-1, dp(act, 46));
                 lpConfirm.topMargin = dp(act, 10);
                 card.addView(btnConfirm2, lpConfirm);
                 btnConfirm2.setOnClickListener(new View.OnClickListener() {
@@ -130,7 +133,7 @@ void showMemberPicker(String groupUin, EditText targetInput) {
                 });
 
                 d.setContentView(card);
-                d.getWindow().setLayout((int)(act.getResources().getDisplayMetrics().widthPixels * 0.9), dp(act, 380));
+                d.getWindow().setLayout((int)(act.getResources().getDisplayMetrics().widthPixels * 0.9), dp(act, 440));
                 d.show();
             } catch (Throwable t) {
                 error("群员检索错误: " + t);
