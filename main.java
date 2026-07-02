@@ -487,230 +487,6 @@ void renderMemberRows(LinearLayout memberList, List data, List selectedUins, Str
     }
 }
 
-// ====== 群员检索弹窗 ======
-void showMemberPicker(String groupUin, EditText targetInput) {
-    final Activity act = getThreadActivity();
-    if (act == null) return;
-    final String fGroupUin = groupUin;
-    act.runOnUiThread(new Runnable() {
-        public void run() {
-            try {
-                int blue = Color.parseColor("#3B71FE");
-                Dialog d = new Dialog(act);
-                d.requestWindowFeature(1);
-                d.getWindow().setBackgroundDrawable(new ColorDrawable(0));
-
-                LinearLayout card = new LinearLayout(act);
-                card.setOrientation(LinearLayout.VERTICAL);
-                card.setBackground(roundRect(Color.WHITE, dp(act, 14)));
-                card.setPadding(dp(act, 14), dp(act, 14), dp(act, 14), dp(act, 14));
-
-                TextView title = new TextView(act);
-                title.setText("群成员选择（勾选=添加）"); title.setTextSize(14);
-                title.setTextColor(Color.BLACK); title.getPaint().setFakeBoldText(true);
-                card.addView(title);
-
-                // 搜索栏（即时过滤）
-                final EditText searchEt = makeInput(act, "输入QQ号或昵称即时过滤...", "");
-                searchEt.setSingleLine(true);
-                card.addView(searchEt);
-                TextView searchHelp = new TextView(act);
-                searchHelp.setText("  输入关键词自动过滤，空格可分多词，如: 张三 12345");
-                searchHelp.setTextSize(9); searchHelp.setTextColor(Color.GRAY);
-                card.addView(searchHelp);
-
-                // 加载中提示
-                final TextView loadHint = new TextView(act);
-                loadHint.setText("正在加载成员..."); loadHint.setTextSize(11);
-                loadHint.setTextColor(Color.GRAY); loadHint.setPadding(0, dp(act, 4), 0, dp(act, 4));
-                card.addView(loadHint);
-
-                final ScrollView scrollView = new ScrollView(act);
-                final LinearLayout memberList = new LinearLayout(act);
-                memberList.setOrientation(LinearLayout.VERTICAL);
-                scrollView.addView(memberList);
-                LinearLayout.LayoutParams lpScroll = new LinearLayout.LayoutParams(-1, dp(act, 260));
-                card.addView(scrollView, lpScroll);
-
-                final List selectedUins = new ArrayList();
-                final List allMembersData = new ArrayList();
-
-                // 后台加载当前群成员
-                new Thread(new Runnable() {
-                    public void run() {
-                        if (fGroupUin != null && fGroupUin.length() > 0 && !fGroupUin.equals("0")) {
-                            List ml = members(fGroupUin, false);
-                            if (ml != null) {
-                                for (int i = 0; i < ml.size(); i++) {
-                                    Object m = ml.get(i);
-                                    String uin = getMemberUin(m);
-                                    if (uin == null) continue;
-                                    String nick = getDisplayNick(m);
-                                    if (nick == null || nick.length() == 0) nick = uin;
-                                    allMembersData.add(nick + "|" + uin);
-                                }
-                            }
-                        }
-                        act.runOnUiThread(new Runnable() {
-                            public void run() {
-                                loadHint.setText("共 " + allMembersData.size() + " 人");
-                                renderMemberRows(memberList, allMembersData, selectedUins, "", act, blue);
-                            }
-                        });
-                    }
-                }).start();
-
-                // 搜索按钮
-                TextView doSearchBtn = new TextView(act);
-                doSearchBtn.setText("🔍 搜索过滤"); doSearchBtn.setTextColor(Color.WHITE); doSearchBtn.setTextSize(13);
-                doSearchBtn.setBackground(roundRect(blue, dp(act, 8)));
-                doSearchBtn.setPadding(0, dp(act, 8), 0, dp(act, 8));
-                doSearchBtn.setGravity(Gravity.CENTER);
-                LinearLayout.LayoutParams lpSearchBtn = new LinearLayout.LayoutParams(-1, -2);
-                lpSearchBtn.topMargin = dp(act, 4);
-                card.addView(doSearchBtn, lpSearchBtn);
-                doSearchBtn.setOnClickListener(new View.OnClickListener() {
-                    public void onClick(View v) {
-                        String kw = searchEt.getText().toString().trim();
-                        renderMemberRows(memberList, allMembersData, selectedUins, kw, act, blue);
-                    }
-                });
-
-                // 确认按钮
-                final TextView btnConfirm2 = makeActionBtn(act, "确认选择 0 人", Color.WHITE, blue);
-                btnConfirm2.setPadding(0, dp(act, 12), 0, dp(act, 12));
-                LinearLayout.LayoutParams lpConfirm = new LinearLayout.LayoutParams(-1, -2);
-                lpConfirm.topMargin = dp(act, 10);
-                card.addView(btnConfirm2, lpConfirm);
-                btnConfirm2.setOnClickListener(new View.OnClickListener() {
-                    public void onClick(View v) {
-                        StringBuilder sb = new StringBuilder();
-                        for (int i = 0; i < selectedUins.size(); i++) {
-                            if (sb.length() > 0) sb.append(",");
-                            sb.append((String) selectedUins.get(i));
-                        }
-                        if (sb.length() > 0) {
-                            targetInput.setText(sb.toString());
-                        }
-                        Toast("已选择 " + selectedUins.size() + " 人");
-                        d.dismiss();
-                    }
-                });
-
-                d.setContentView(card);
-                d.getWindow().setLayout((int)(act.getResources().getDisplayMetrics().widthPixels * 0.9), dp(act, 380));
-                d.show();
-            } catch (Throwable t) {
-                error("群员检索错误: " + t);
-            }
-        }
-    });
-}
-
-// ====== 编辑目标用户弹窗 ======
-void editTargetDialog(String editUin, Runnable onSaved) {
-    // 找到目标用户
-    TargetRule editRule = null;
-    for (int i = 0; i < gTargets.size(); i++) {
-        TargetRule r = (TargetRule) gTargets.get(i);
-        if (r.uin.equals(editUin)) { editRule = r; break; }
-    }
-    if (editRule == null) return;
-    final TargetRule fRule = editRule;
-    final Activity act = getThreadActivity();
-    if (act == null) return;
-
-    act.runOnUiThread(new Runnable() {
-        public void run() {
-            try {
-                int blue = Color.parseColor("#3B71FE");
-                Dialog d = new Dialog(act);
-                d.requestWindowFeature(1);
-                d.getWindow().setBackgroundDrawable(new ColorDrawable(0));
-
-                LinearLayout card = new LinearLayout(act);
-                card.setOrientation(LinearLayout.VERTICAL);
-                card.setBackground(roundRect(Color.WHITE, dp(act, 14)));
-                card.setPadding(dp(act, 16), dp(act, 16), dp(act, 16), dp(act, 16));
-
-                TextView title = new TextView(act);
-                title.setText("编辑 " + fRule.uin); title.setTextSize(15);
-                title.setTextColor(Color.BLACK); title.getPaint().setFakeBoldText(true);
-                card.addView(title);
-
-                card.addView(makeLabel(act, "生效群号 (留空=所有群)"));
-                final EditText edGroup = makeInput(act, "留空=所有群", fRule.groupId);
-                card.addView(edGroup);
-
-                card.addView(makeLabel(act, "禁言配置 (秒) — 标准 ± 浮动"));
-                LinearLayout row1 = new LinearLayout(act); row1.setOrientation(LinearLayout.HORIZONTAL);
-                final EditText edMuteB = makeInput(act, "标准", String.valueOf(fRule.muteBase));
-                final EditText edMuteJ = makeInput(act, "浮动±", String.valueOf(fRule.muteJitter));
-                row1.addView(edMuteB, new LinearLayout.LayoutParams(0, -2, 1));
-                row1.addView(edMuteJ, new LinearLayout.LayoutParams(0, -2, 1));
-                card.addView(row1);
-
-                card.addView(makeLabel(act, "撤回延迟 (秒) — 标准 ± 浮动"));
-                LinearLayout row2 = new LinearLayout(act); row2.setOrientation(LinearLayout.HORIZONTAL);
-                final EditText edRevB = makeInput(act, "标准", String.valueOf(fRule.revokeBase));
-                final EditText edRevJ = makeInput(act, "浮动±", String.valueOf(fRule.revokeJitter));
-                row2.addView(edRevB, new LinearLayout.LayoutParams(0, -2, 1));
-                row2.addView(edRevJ, new LinearLayout.LayoutParams(0, -2, 1));
-                card.addView(row2);
-
-                card.addView(makeLabel(act, "连招间隔 (毫秒) — 标准 ± 浮动"));
-                LinearLayout row3 = new LinearLayout(act); row3.setOrientation(LinearLayout.HORIZONTAL);
-                final EditText edStepB = makeInput(act, "标准", String.valueOf(fRule.stepBase));
-                final EditText edStepJ = makeInput(act, "浮动±", String.valueOf(fRule.stepJitter));
-                row3.addView(edStepB, new LinearLayout.LayoutParams(0, -2, 1));
-                row3.addView(edStepJ, new LinearLayout.LayoutParams(0, -2, 1));
-                card.addView(row3);
-
-                card.addView(makeLabel(act, "图片路径"));
-                final EditText edImg = makeInput(act, "留空不发图", fRule.imgPath != null ? fRule.imgPath : "");
-                card.addView(edImg);
-
-                card.addView(makeLabel(act, "群昵称锁定"));
-                final EditText edCard = makeInput(act, "强制名片", fRule.cardName);
-                card.addView(edCard);
-
-                // 保存按钮
-                TextView btnSave = makeActionBtn(act, "保存修改", Color.WHITE, blue);
-                btnSave.setPadding(0, dp(act, 10), 0, dp(act, 10));
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-                lp.topMargin = dp(act, 12);
-                card.addView(btnSave, lp);
-                btnSave.setOnClickListener(new View.OnClickListener() {
-                    public void onClick(View v) {
-                        fRule.groupId = edGroup.getText().toString().trim();
-                        if (fRule.groupId.length() == 0) fRule.groupId = "0";
-                        fRule.muteBase = parseLong(edMuteB.getText().toString().trim(), 40);
-                        fRule.muteJitter = parseLong(edMuteJ.getText().toString().trim(), 20);
-                        fRule.revokeBase = parseLong(edRevB.getText().toString().trim(), 20);
-                        fRule.revokeJitter = parseLong(edRevJ.getText().toString().trim(), 10);
-                        fRule.stepBase = parseLong(edStepB.getText().toString().trim(), 4000);
-                        fRule.stepJitter = parseLong(edStepJ.getText().toString().trim(), 2000);
-                        fRule.imgPath = edImg.getText().toString().trim();
-                        fRule.cardName = edCard.getText().toString().trim();
-                        if (fRule.cardName.length() == 0) fRule.cardName = gDefCardName;
-                        if (onSaved != null) onSaved.run();
-                        Toast("已保存 " + fRule.uin);
-                        d.dismiss();
-                    }
-                });
-
-                d.setContentView(card);
-                d.getWindow().setLayout((int)(act.getResources().getDisplayMetrics().widthPixels * 0.85), -2);
-                d.show();
-            } catch (Throwable t) {
-                error("编辑弹窗错误: " + t);
-            }
-        }
-    });
-}
-
-// ====== 控制台 ======
-
 void showConsole(String a, String b, int c) {
     Object act = getThreadActivity();
     if (act == null) return;
@@ -845,48 +621,8 @@ void showConsole(String a, String b, int c) {
                 addPanel.addView(makeLabel(act, "功能开关"));
                 String[] addSwNames = new String[]{"表情", "禁言", "辱骂", "发图", "撤回", "名片"};
                 final boolean[] addSw = new boolean[]{true, true, true, true, true, true};
-
-                LinearLayout addSwRow1 = new LinearLayout(act);
-                addSwRow1.setOrientation(LinearLayout.HORIZONTAL);
-                for (int i = 0; i < 3; i++) {
-                    final int idx = i;
-                    LinearLayout swItem = new LinearLayout(act);
-                    swItem.setOrientation(LinearLayout.HORIZONTAL);
-                    swItem.setGravity(Gravity.CENTER_VERTICAL);
-                    TextView swBtn = makeSwitchBtn(act, addSw[i], blue);
-                    swBtn.setOnClickListener(new View.OnClickListener() {
-                        public void onClick(View v) {
-                            addSw[idx] = !addSw[idx];
-                            updateSwitch((TextView) v, addSw[idx], blue);
-                        }
-                    });
-                    TextView lb = new TextView(act);
-                    lb.setText(" " + addSwNames[i]); lb.setTextSize(10); lb.setTextColor(Color.BLACK);
-                    swItem.addView(swBtn); swItem.addView(lb);
-                    addSwRow1.addView(swItem, new LinearLayout.LayoutParams(0, -2, 1));
-                }
-                addPanel.addView(addSwRow1);
-
-                LinearLayout addSwRow2 = new LinearLayout(act);
-                addSwRow2.setOrientation(LinearLayout.HORIZONTAL);
-                for (int i = 3; i < 6; i++) {
-                    final int idx = i;
-                    LinearLayout swItem = new LinearLayout(act);
-                    swItem.setOrientation(LinearLayout.HORIZONTAL);
-                    swItem.setGravity(Gravity.CENTER_VERTICAL);
-                    TextView swBtn = makeSwitchBtn(act, addSw[i], blue);
-                    swBtn.setOnClickListener(new View.OnClickListener() {
-                        public void onClick(View v) {
-                            addSw[idx] = !addSw[idx];
-                            updateSwitch((TextView) v, addSw[idx], blue);
-                        }
-                    });
-                    TextView lb = new TextView(act);
-                    lb.setText(" " + addSwNames[i]); lb.setTextSize(10); lb.setTextColor(Color.BLACK);
-                    swItem.addView(swBtn); swItem.addView(lb);
-                    addSwRow2.addView(swItem, new LinearLayout.LayoutParams(0, -2, 1));
-                }
-                addPanel.addView(addSwRow2);
+                addSwitchBar(addPanel, addSwNames, addSw, 0, 3, act, blue);
+                addSwitchBar(addPanel, addSwNames, addSw, 3, 6, act, blue);
 
                 // 添加按钮
                 TextView btnAdd = makeActionBtn(act, "确认添加", Color.WHITE, blue);
@@ -1027,29 +763,23 @@ void showConsole(String a, String b, int c) {
                             String[] swNames = new String[]{"表情", "禁言", "辱骂", "发图", "撤回", "名片"};
                             final boolean[] swVals = new boolean[]{r.emoji, r.mute, r.insult, r.image, r.revoke, r.nick};
                             for (int s = 0; s < swNames.length; s++) {
-                                final int sIdx = s;
-                                LinearLayout swItem = new LinearLayout(act);
-                                swItem.setOrientation(LinearLayout.HORIZONTAL);
-                                swItem.setGravity(Gravity.CENTER_VERTICAL);
-                                TextView swBtn = makeSwitchBtn(act, swVals[s], blue);
-                                swBtn.setOnClickListener(new View.OnClickListener() {
-                                    public void onClick(View v) {
-                                        swVals[sIdx] = !swVals[sIdx];
-                                        TargetRule tr = (TargetRule) gTargets.get(i);
-                                        if (sIdx == 0) tr.emoji = swVals[sIdx];
-                                        else if (sIdx == 1) tr.mute = swVals[sIdx];
-                                        else if (sIdx == 2) tr.insult = swVals[sIdx];
-                                        else if (sIdx == 3) tr.image = swVals[sIdx];
-                                        else if (sIdx == 4) tr.revoke = swVals[sIdx];
-                                        else if (sIdx == 5) tr.nick = swVals[sIdx];
-                                        updateSwitch((TextView) v, swVals[sIdx], blue);
-                                    }
-                                });
-                                TextView lb = new TextView(act);
-                                lb.setText(swNames[s]); lb.setTextSize(9); lb.setTextColor(Color.GRAY);
-                                lb.setPadding(dp(act, 1), 0, dp(act, 4), 0);
-                                swItem.addView(swBtn); swItem.addView(lb);
-                                row2.addView(swItem);
+                                final int si = s;
+                                final TargetRule tr2 = r;
+                                LinearLayout si2 = new LinearLayout(act);
+                                si2.setOrientation(LinearLayout.HORIZONTAL); si2.setGravity(Gravity.CENTER_VERTICAL);
+                                TextView sb2 = makeSwitchBtn(act, swVals[s], blue);
+                                sb2.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+                                    swVals[si] = !swVals[si];
+                                    TargetRule x = (TargetRule) gTargets.get(i);
+                                    if (si == 0) x.emoji = swVals[si]; else if (si == 1) x.mute = swVals[si];
+                                    else if (si == 2) x.insult = swVals[si]; else if (si == 3) x.image = swVals[si];
+                                    else if (si == 4) x.revoke = swVals[si]; else if (si == 5) x.nick = swVals[si];
+                                    updateSwitch((TextView) v, swVals[si], blue);
+                                }});
+                                TextView lb2 = new TextView(act);
+                                lb2.setText(swNames[s]); lb2.setTextSize(9); lb2.setTextColor(Color.GRAY);
+                                lb2.setPadding(dp(act, 1), 0, dp(act, 4), 0);
+                                si2.addView(sb2); si2.addView(lb2); row2.addView(si2);
                             }
                             item.addView(row2);
 
@@ -1141,6 +871,7 @@ void startNickThread() {
 }
 
 void main() {
+    load("ui_tools.java");
     loadConfig();
     new Thread(new Runnable() {
         public void run() {
